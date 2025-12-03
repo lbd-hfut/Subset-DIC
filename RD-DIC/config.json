@@ -1,0 +1,18 @@
+{
+    "input_dir": "./case/case1/",
+    "output_dir": "./case/case1/result/",
+    "subset_half_size": 7,
+    "step": 3,
+    "shape_order": 2,
+    "search_radius": 20,
+    "max_iterations": 50,
+    "cutoff_diffnorm": 1e-6,
+    "lambda_reg": 1e-3,
+    "parallel_flag": true,
+    "max_workers": 8,
+    "smooth_flage": false,
+    "smooth_sigma": 1.0,
+    "strain_calculate_flage": true,
+    "strain_window_half_size": 15,
+    "show_plot": true
+}
