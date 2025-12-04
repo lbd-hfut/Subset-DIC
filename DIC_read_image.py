@@ -16,6 +16,7 @@ class BufferManager:
     refImg = None
     defImg = None
     mask = None
+    mask_pad = None
 
 
 class Img_Dataset(Dataset):
@@ -69,12 +70,17 @@ class Img_Dataset(Dataset):
         if num_labels == 0:
             raise RuntimeError("Mask 中没有前景像素！")
         ROI_list = []
+        ROI_pad_list = []
         for comp_id in range(1, num_labels + 1):
             roi_i = (labeled == comp_id)
             # 创建单连通域 ROI
             ROI_list.append(roi_i)
+            roi_i_pad = np.pad(roi_i, pad_width=self.config.subset_half_size, mode='constant', constant_values=False)
+            ROI_pad_list.append(roi_i_pad)
         if BufferManager.mask is None:
             BufferManager.mask = ROI_list
+        if BufferManager.mask_pad is None:
+            BufferManager.mask_pad = ROI_pad_list
         return ROI_list
     
     def beta5_nth(self, x, n=0):

@@ -124,7 +124,7 @@ def iterativesearch(
     fm = np.sum(f_buffer) / len(f_buffer)
     deltaf_inv = np.sqrt(np.sum(((f_buffer - fm)**2)))
     if deltaf_inv < lambda_reg:
-        return FAILED, defvector_init, 1
+        return FAILED, defvector_init, -1
     else:
         deltaf_inv = 1 / deltaf_inv
         df_dp_buffer = np.zeros((len(f_buffer), 12), dtype=np.float32)

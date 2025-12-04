@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from typing import List
 import cv2
 from tqdm import tqdm
+from threading import RLock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from DIC_read_image import BufferManager
 from DIC_icgn_newton import iterativesearch
@@ -99,12 +100,10 @@ class seed_math:
                 executor.submit(worker, seed_xy): seed_xy
                 for seed_xy in seed_points
             }
-
-            for future in tqdm(as_completed(future_to_seed), 
-                           total=n_points,
-                           desc="Solving seed points",
-                           unit="pt"):
-                results.append(future.result())
+            with tqdm(total=n_points, desc="Solving seed points", unit="pt") as pbar:
+                for future in as_completed(future_to_seed):
+                    results.append(future.result())
+                    pbar.update(1)
         return results
 
     
@@ -119,13 +118,14 @@ def cal_seed_point(
     lambda_reg: float = 1e-3
 ):
     mask = None
-    for roi in BufferManager.mask:
+    for roi_idx, roi in enumerate(BufferManager.mask):
         if roi[cy, cx]:
             mask = roi
+            mask_idx = roi_idx
             break
     if mask is None:
         raise ValueError(f"种子点 (y:{cy}, x:{cx}) 不在ROI内")
-    mask_pad = np.pad(mask, pad_width=subset_r, mode='constant', constant_values=False)
+    mask_pad = BufferManager.mask_pad[mask_idx]
     
     u0, v0 = coarse_search_int(cy, cx, mask, subset_r, search_radius)
     defvector_init = np.zeros(12)
