@@ -294,7 +294,7 @@ def main(config_path):
         DIC_save_mat(idx, Subset_DIC_Buffer, DIC_Solver.output_dir)
         
 if __name__ == "__main__":
-    config_path = "./RD-DIC/config.json"
+    config_path = "./config.json"
     main(config_path)
         
 
