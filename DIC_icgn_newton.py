@@ -207,8 +207,10 @@ def newton(
     
     X_tilda_corrd = xc + dx + u
     Y_tilda_corrd = yc + dy + v
-    
-    g_buffer = interpqbs(X_tilda_corrd, Y_tilda_corrd, REF_FLAG=False, DEF_FLAG=True)
+    try:
+        g_buffer = interpqbs(X_tilda_corrd, Y_tilda_corrd, REF_FLAG=False, DEF_FLAG=True)
+    except:
+        return FAILED, defvector_init, cutoff_diffnorm*10, 1
     gm = np.sum(g_buffer) / len(g_buffer)
     deltag_inv = np.sqrt(np.sum(((g_buffer - gm)**2)))
     if deltag_inv < lambda_reg:

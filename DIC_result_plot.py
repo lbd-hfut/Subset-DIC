@@ -11,8 +11,6 @@ def visualize_seed_BFS(idx, seed_result, threaddiagram, output_dir):
     plt.scatter(xs, ys, c='red', s=80, label="Seeds")
     plt.legend()
     plt.title("BFS Region Growing from Seeds")
-    plt.gca().invert_yaxis()
-    
     # === 保存图像 ===
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"seed_bfs_region_{idx+1:03d}.png")
@@ -114,6 +112,7 @@ def visualize_contourf(idx, Subset_DIC_Buffer, output_dir):
             vmax = np.nanmax(data_to_show)
             im = ax.contourf(data_to_show, levels=100, cmap='jet', vmin=vmin, vmax=vmax)
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            ax.invert_yaxis()
         else:
             im = ax.imshow(data, cmap='gray')
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -132,7 +131,7 @@ def visualize_contourf(idx, Subset_DIC_Buffer, output_dir):
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         ax.set_title(title)
         ax.axis("off")
-
+        ax.invert_yaxis()
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()

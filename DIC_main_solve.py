@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from DIC_read_image import BufferManager, Img_Dataset, collate_fn
 from DIC_icgn_newton import iterativesearch, SUCCESS, FAILED
 from DIC_load_config import load_dic_config
-from DIC_cal_seed import seed_math
+from DIC_cal_seed import seed_math, cal_seed_point
 from DIC_result_plot import visualize_seed_BFS, visualize_imshow, visualize_contourf
 from DIC_threaddiagram import bfs_region_grow
 from DIC_post_processing import DIC_smooth_Displacement, DIC_Strain_from_Displacement
@@ -19,6 +19,7 @@ from DIC_save_results import DIC_save_mat
 class Subset_DIC_Buffer:
     # DIC params
     subset_r = None
+    search_radius = None
     step = None
     max_iter = None
     cutoff_diffnorm = None
@@ -56,6 +57,7 @@ seed_everything(42)
 class Subset_DIC_solver:
     def __init__(self, config):
         Subset_DIC_Buffer.subset_r = config.subset_half_size
+        Subset_DIC_Buffer.search_radius = config.search_radius
         Subset_DIC_Buffer.step = config.step
         Subset_DIC_Buffer.shape_order = config.shape_order
         Subset_DIC_Buffer.max_iter = config.max_iterations
@@ -112,28 +114,10 @@ class Subset_DIC_solver:
                 pbar_lock=pbar_lock,
                 stop_event=self.stop_event
             )
-        
-        if Subset_DIC_Buffer.parallel_flag:
-            max_workers = Subset_DIC_Buffer.max_workers
-        else:
-            max_workers = 1
-        try:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_seed = {
-                    executor.submit(worker, queues[i], Subset_DIC_Buffer.seeds_info[i]): i
-                    for i in range(len(Subset_DIC_Buffer.seeds_info))
-                }
-                # 等待所有线程完成
-                for future in as_completed(future_to_seed):
-                    try:
-                        future.result()     # 捕获线程内部异常
-                    except Exception as exc:
-                        print(f"Seed {future_to_seed[future]} raised exception: {exc}")
-                global_pbar.close()
-        except KeyboardInterrupt:
-            print("用户终止，停止所有线程...")
-            global_pbar.close()
-            self.stop_event.set()
+            
+        for i in range(len(queues)):
+            worker(queues[i], Subset_DIC_Buffer.seeds_info[i])
+        global_pbar.close()
 
 
 def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
@@ -184,7 +168,41 @@ def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
                 pbar_lock = pbar_lock,
                 stop_event = stop_event
                 )
-        
+        if queue:
+            continue
+        else:
+            with Subset_DIC_Buffer.data_lock:
+                # 查找该线程未计算点
+                ys_u, xs_u = np.where(
+                    (Subset_DIC_Buffer.threaddiagram == num_thread) & \
+                        (~Subset_DIC_Buffer.plot_calcpoints) & \
+                            BufferManager.mask[num_region]
+                    )
+            Num_left_points =len(ys_u)
+            if Num_left_points== 0:
+                continue
+            else:
+                random_idx = np.random.randint(0, Num_left_points)
+                seed_y = ys_u[random_idx]
+                seed_x = xs_u[random_idx]
+                outstate, defvector, corrcoef = cal_seed_point(
+                    cy=seed_y, cx=seed_x, 
+                    X_flat=Subset_DIC_Buffer.X_flat, 
+                    Y_flat=Subset_DIC_Buffer.Y_flat, 
+                    subset_r=Subset_DIC_Buffer.subset_r,
+                    search_radius=Subset_DIC_Buffer.search_radius, 
+                    max_iter=Subset_DIC_Buffer.max_iter,
+                    cutoff_diffnorm=Subset_DIC_Buffer.cutoff_diffnorm, 
+                    lambda_reg=Subset_DIC_Buffer.lambda_reg
+                )
+                if (outstate == SUCCESS and corrcoef < 1.0):
+                    Subset_DIC_Buffer.plot_validpoints[y,x] = True
+                paramvector = (seed_x, seed_y, defvector, corrcoef, num_region, num_thread)
+                queue.append(paramvector)
+                Subset_DIC_Buffer.plot_calcpoints[y,x] = True
+                if pbar is not None and pbar_lock is not None:
+                    with pbar_lock:
+                        pbar.update(1)
 
 def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar_lock, stop_event):
     if stop_event.is_set():   # 立即退出该点计算
@@ -215,10 +233,18 @@ def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar
         queue.append(paramvector)
         Subset_DIC_Buffer.plot_validpoints[y,x] = True
     else:
-        with Subset_DIC_Buffer.data_lock:
-            Subset_DIC_Buffer.plot_u[y,x] = defvector[0]
-            Subset_DIC_Buffer.plot_v[y,x] = defvector[1]
-            Subset_DIC_Buffer.plot_corrcoef[y,x] = corrcoef
+        # 失败了再从新整像素搜索和亚像素匹配执行，re_cal_failed_points
+        outstate, defvector, corrcoef = re_cal_failed_points(cy=y, cx=x, num_region=num_region)
+        if (outstate == SUCCESS and
+            corrcoef < cutoff_corrcoef):
+            paramvector = (x, y, defvector, corrcoef, num_region, num_thread)
+            queue.append(paramvector)
+            Subset_DIC_Buffer.plot_validpoints[y,x] = True
+        else:
+            with Subset_DIC_Buffer.data_lock:
+                Subset_DIC_Buffer.plot_u[y,x] = defvector[0]
+                Subset_DIC_Buffer.plot_v[y,x] = defvector[1]
+                Subset_DIC_Buffer.plot_corrcoef[y,x] = corrcoef
     # ---------------- 标记已计算 ----------------
     Subset_DIC_Buffer.plot_calcpoints[y,x] = True
     # ---------------- 线程更新进度 ----------------
@@ -249,6 +275,32 @@ def cal_point(
         cutoff_diffnorm=Subset_DIC_Buffer.cutoff_diffnorm,
         lambda_reg=Subset_DIC_Buffer.lambda_reg
         )
+    return flag, defvector, corrcoef
+
+def re_cal_failed_points(
+    cy: int, cx: int, 
+    num_region: int
+):
+    mask_pad = BufferManager.mask_pad[num_region]
+    
+    py = cy + Subset_DIC_Buffer.subset_r
+    px = cx + Subset_DIC_Buffer.subset_r
+    y0, y1 = py - Subset_DIC_Buffer.subset_r, py + Subset_DIC_Buffer.subset_r + 1
+    x0, x1 = px - Subset_DIC_Buffer.subset_r, px + Subset_DIC_Buffer.subset_r + 1
+    mask_seg = mask_pad[y0:y1, x0:x1].reshape(-1)
+    valid_idx = np.nonzero(mask_seg)[0]
+    dx, dy = Subset_DIC_Buffer.X_flat[valid_idx], Subset_DIC_Buffer.Y_flat[valid_idx]
+    
+    flag, defvector, corrcoef = cal_seed_point(
+        cy=cy, cx=cx, 
+        X_flat=Subset_DIC_Buffer.X_flat, 
+        Y_flat=Subset_DIC_Buffer.Y_flat, 
+        subset_r=Subset_DIC_Buffer.subset_r,
+        search_radius=Subset_DIC_Buffer.search_radius, 
+        max_iter=Subset_DIC_Buffer.max_iter,
+        cutoff_diffnorm=Subset_DIC_Buffer.cutoff_diffnorm, 
+        lambda_reg=Subset_DIC_Buffer.lambda_reg
+    )
     return flag, defvector, corrcoef
 
 

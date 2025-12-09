@@ -1,6 +1,6 @@
 {
-    "input_dir": "./case/case1_with_smooth/",
-    "output_dir": "./case/case1_with_smooth/result/",
+    "input_dir": "C:/01project/DIC_boundary_test_data-main/case/circle/scale/S0p5/",
+    "output_dir": "C:/01project/DIC_boundary_test_data-main/case/circle/scale/S0p5/Subset/",
     "subset_half_size": 10,
     "step": 1,
     "shape_order": 2,
