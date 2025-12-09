@@ -7,7 +7,7 @@ def DIC_save_mat(idx, Subset_DIC_Buffer, output_dir):
     The saved struct allows MATLAB to access fields using dot notation.
     """
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"result_{idx+1:03d}.mat")
+    save_path = os.path.join(output_dir, f"Subset_DIC_{idx+1:03d}.mat")
 
     # 构建要保存的字典，对应 MATLAB struct
     dic_struct = {
