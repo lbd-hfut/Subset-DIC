@@ -8,6 +8,7 @@ def bfs_region_grow(seed_result):
     seed_valid_result = []
     seed_valid_pos = []
     for (cx, cy, flag, defvector, corrcoef) in seed_result:
+        print(f"({cx},{cy}) flag={flag}: {defvector[:2]}, Ncc[{corrcoef}]")
         if flag and corrcoef < 0.1:
             seed_valid_result.append((cx, cy, flag, defvector, corrcoef))
             seed_valid_pos.append((cx, cy))

@@ -21,9 +21,13 @@ def DIC_save_mat(idx, Subset_DIC_Buffer, output_dir):
         'plot_ey': Subset_DIC_Buffer.plot_ey,
         'plot_rxy': Subset_DIC_Buffer.plot_rxy,
         'plot_corrcoef': Subset_DIC_Buffer.plot_corrcoef,
-        'seeds_info': Subset_DIC_Buffer.seeds_info
+        'seeds_info': Subset_DIC_Buffer.seeds_info,
+        'w_origin': Subset_DIC_Buffer.w_origin,
+        'h_origin': Subset_DIC_Buffer.h_origin,
+        'w_resize': Subset_DIC_Buffer.w_resize,
+        'h_resize': Subset_DIC_Buffer.h_resize,
     }
-
+    
     # 使用 savemat 保存，结构体形式
     savemat(save_path, {'DIC_result': dic_struct})
     print(f"Saved MATLAB .mat file: {save_path}")

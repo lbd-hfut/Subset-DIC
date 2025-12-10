@@ -20,7 +20,7 @@ class Subset_DIC_Buffer:
     # DIC params
     subset_r = None
     search_radius = None
-    step = None
+    step = 1
     max_iter = None
     cutoff_diffnorm = None
     lambda_reg = None
@@ -39,6 +39,10 @@ class Subset_DIC_Buffer:
     plot_corrcoef = None
     threaddiagram = None
     seeds_info = None
+    w_origin = None
+    h_origin = None
+    w_resize = None
+    h_resize = None
     # write data lock
     data_lock = RLock()
 
@@ -58,7 +62,6 @@ class Subset_DIC_solver:
     def __init__(self, config):
         Subset_DIC_Buffer.subset_r = config.subset_half_size
         Subset_DIC_Buffer.search_radius = config.search_radius
-        Subset_DIC_Buffer.step = config.step
         Subset_DIC_Buffer.shape_order = config.shape_order
         Subset_DIC_Buffer.max_iter = config.max_iterations
         Subset_DIC_Buffer.cutoff_diffnorm = config.cutoff_diffnorm
@@ -208,7 +211,7 @@ def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar
     if stop_event.is_set():   # 立即退出该点计算
         return
     cutoff_corrcoef = 2.0
-    cutoff_disp = Subset_DIC_Buffer.step
+    cutoff_disp = 1
     H, W = BufferManager.mask[num_region].shape
     if x < 0 or x >= W or y < 0 or y >= H:
         return
@@ -323,6 +326,16 @@ def main(config_path):
         # solve subset dic
         DIC_Solver._init_DIC_BUFFER(seed_valid_result, threaddiagram)
         DIC_Solver.solve(idx)
+        if (BufferManager.w_origin != BufferManager.w_resize) or \
+            (BufferManager.h_origin != BufferManager.h_resize):
+                yscale = BufferManager.h_origin / BufferManager.h_resize
+                xcalse = BufferManager.w_origin / BufferManager.w_resize
+                Subset_DIC_Buffer.plot_u = Subset_DIC_Buffer.plot_u * xcalse
+                Subset_DIC_Buffer.plot_v = Subset_DIC_Buffer.plot_v * yscale
+        Subset_DIC_Buffer.w_origin = BufferManager.w_origin
+        Subset_DIC_Buffer.h_origin = BufferManager.h_origin
+        Subset_DIC_Buffer.w_resize = BufferManager.w_resize
+        Subset_DIC_Buffer.h_resize = BufferManager.h_resize
         # post processing
         if DIC_Solver.smooth_flage:
             Subset_DIC_Buffer.plot_u, Subset_DIC_Buffer.plot_v = \

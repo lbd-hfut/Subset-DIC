@@ -171,7 +171,7 @@ def iterativesearch(
                     return FAILED, defvector_init, corrcoef
             return SUCCESS, defvector_init, corrcoef
         else:
-            return FAILED, defvector_init, corrcoef
+            return FAILED, defvector_init, 1.0
 
 # -------------------------
 # Newton (IC-GN) implementation

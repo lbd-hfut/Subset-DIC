@@ -17,6 +17,11 @@ class BufferManager:
     defImg = None
     mask = None
     mask_pad = None
+    w_origin = None
+    h_origin = None
+    w_resize = None
+    h_resize = None
+    
 
 
 class Img_Dataset(Dataset):
@@ -50,7 +55,17 @@ class Img_Dataset(Dataset):
     
     def open_image(self,name):
         img = Image.open(name).convert('L')
+        w, h = img.size
+        if BufferManager.w_origin == None:
+            BufferManager.w_origin = w
+            BufferManager.h_origin = h
+        if self.config.step > 1:
+            img = img.resize((w // self.config.step, h // self.config.step), Image.BICUBIC)
         img = np.array(img)
+        w, h = img.shape
+        if BufferManager.w_resize == None:
+            BufferManager.w_resize = w
+            BufferManager.h_resize = h
         return img / 255
     
     def _get_refImg(self):

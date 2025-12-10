@@ -165,8 +165,14 @@ def coarse_search_int(cy, cx, mask, subset_r, search_radius):
     x_max = int(min(W, x1c + search_radius + 1))
     
     search_def = BufferManager.defImg[y_min:y_max, x_min:x_max].astype(np.float32)
+    mask_zero = (search_def == 0)
+    if mask_zero.any():
+        search_def += mask_zero * (np.random.rand(*search_def.shape).astype(np.float32) * 1e-6)
+    mask_zero_ref = (ref_patch == 0)
+    if mask_zero_ref.any():
+        ref_patch += mask_zero_ref * (np.random.rand(*ref_patch.shape).astype(np.float32) * 1e-6)
     res = cv2.matchTemplate(
-        search_def, ref_patch,
+        search_def*255, ref_patch*255,
         cv2.TM_CCOEFF_NORMED,
         mask=mask_patch
     )
@@ -185,7 +191,7 @@ if __name__ == "__main__":
     from scipy.io import savemat
     import time
 
-    cfg = load_dic_config("./RD-DIC/config.json")
+    cfg = load_dic_config("./config.json")
     imgGenDataset = Img_Dataset(cfg)
     
     imgGenDataset._get_QK_QKdx_QKdxx()
