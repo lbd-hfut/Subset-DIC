@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import os
 import random
+from scipy.ndimage import zoom
 from collections import deque
 from tqdm import tqdm
 from threading import RLock, Event
@@ -171,41 +172,42 @@ def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
                 pbar_lock = pbar_lock,
                 stop_event = stop_event
                 )
-        # if queue:
-        #     continue
-        # else:
-        #     with Subset_DIC_Buffer.data_lock:
-        #         # 查找该线程未计算点
-        #         ys_u, xs_u = np.where(
-        #             (Subset_DIC_Buffer.threaddiagram == num_thread) & \
-        #                 (~Subset_DIC_Buffer.plot_calcpoints) & \
-        #                     BufferManager.mask[num_region]
-        #             )
-        #     Num_left_points =len(ys_u)
-        #     if Num_left_points== 0:
-        #         continue
-        #     else:
-        #         random_idx = np.random.randint(0, Num_left_points)
-        #         seed_y = ys_u[random_idx]
-        #         seed_x = xs_u[random_idx]
-        #         outstate, defvector, corrcoef = cal_seed_point(
-        #             cy=seed_y, cx=seed_x, 
-        #             X_flat=Subset_DIC_Buffer.X_flat, 
-        #             Y_flat=Subset_DIC_Buffer.Y_flat, 
-        #             subset_r=Subset_DIC_Buffer.subset_r,
-        #             search_radius=Subset_DIC_Buffer.search_radius, 
-        #             max_iter=Subset_DIC_Buffer.max_iter,
-        #             cutoff_diffnorm=Subset_DIC_Buffer.cutoff_diffnorm, 
-        #             lambda_reg=Subset_DIC_Buffer.lambda_reg
-        #         )
-        #         if (outstate == SUCCESS and corrcoef < 1.0):
-        #             Subset_DIC_Buffer.plot_validpoints[y,x] = True
-        #         paramvector = (seed_x, seed_y, defvector, corrcoef, num_region, num_thread)
-        #         queue.append(paramvector)
-        #         Subset_DIC_Buffer.plot_calcpoints[y,x] = True
-        #         if pbar is not None and pbar_lock is not None:
-        #             with pbar_lock:
-        #                 pbar.update(1)
+        if queue:
+            continue
+        else:
+            with Subset_DIC_Buffer.data_lock:
+                # 查找该线程未计算点
+                ys_u, xs_u = np.where(
+                    (Subset_DIC_Buffer.threaddiagram == num_thread) & \
+                        (~Subset_DIC_Buffer.plot_calcpoints) & \
+                            BufferManager.mask[num_region]
+                    )
+            Num_left_points =len(ys_u)
+            if Num_left_points== 0:
+                continue
+            else:
+                random_idx = np.random.randint(0, Num_left_points)
+                seed_y = ys_u[random_idx]
+                seed_x = xs_u[random_idx]
+                outstate, defvector, corrcoef = cal_seed_point(
+                    cy=seed_y, cx=seed_x, 
+                    X_flat=Subset_DIC_Buffer.X_flat, 
+                    Y_flat=Subset_DIC_Buffer.Y_flat, 
+                    subset_r=Subset_DIC_Buffer.subset_r,
+                    search_radius=Subset_DIC_Buffer.search_radius, 
+                    max_iter=Subset_DIC_Buffer.max_iter,
+                    cutoff_diffnorm=Subset_DIC_Buffer.cutoff_diffnorm, 
+                    lambda_reg=Subset_DIC_Buffer.lambda_reg
+                )
+                if (outstate == SUCCESS and corrcoef < 1.0):
+                    Subset_DIC_Buffer.plot_validpoints[y,x] = True
+                print(f" 新种子点 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
+                paramvector = (seed_x, seed_y, defvector, corrcoef, num_region, num_thread)
+                queue.append(paramvector)
+                Subset_DIC_Buffer.plot_calcpoints[y,x] = True
+                if pbar is not None and pbar_lock is not None:
+                    with pbar_lock:
+                        pbar.update(1)
 
 def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar_lock, stop_event):
     if stop_event.is_set():   # 立即退出该点计算
@@ -236,18 +238,19 @@ def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar
         queue.append(paramvector)
         Subset_DIC_Buffer.plot_validpoints[y,x] = True
     else:
-        # # 失败了再从新整像素搜索和亚像素匹配执行，re_cal_failed_points
-        # outstate, defvector, corrcoef = re_cal_failed_points(cy=y, cx=x, num_region=num_region)
-        # if (outstate == SUCCESS and
-        #     corrcoef < cutoff_corrcoef):
-        #     paramvector = (x, y, defvector, corrcoef, num_region, num_thread)
-        #     queue.append(paramvector)
-        #     Subset_DIC_Buffer.plot_validpoints[y,x] = True
-        # else:
-        with Subset_DIC_Buffer.data_lock:
-            Subset_DIC_Buffer.plot_u[y,x] = defvector[0]
-            Subset_DIC_Buffer.plot_v[y,x] = defvector[1]
-            Subset_DIC_Buffer.plot_corrcoef[y,x] = corrcoef
+        # 失败了再从新整像素搜索和亚像素匹配执行，re_cal_failed_points
+        outstate, defvector, corrcoef = re_cal_failed_points(cy=y, cx=x, num_region=num_region)
+        print(f" 重新匹配 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
+        if (outstate == SUCCESS and
+            corrcoef < cutoff_corrcoef):
+            paramvector = (x, y, defvector, corrcoef, num_region, num_thread)
+            queue.append(paramvector)
+            Subset_DIC_Buffer.plot_validpoints[y,x] = True
+        else:
+            with Subset_DIC_Buffer.data_lock:
+                Subset_DIC_Buffer.plot_u[y,x] = defvector[0]
+                Subset_DIC_Buffer.plot_v[y,x] = defvector[1]
+                Subset_DIC_Buffer.plot_corrcoef[y,x] = corrcoef
     # ---------------- 标记已计算 ----------------
     Subset_DIC_Buffer.plot_calcpoints[y,x] = True
     # ---------------- 线程更新进度 ----------------
@@ -282,16 +285,6 @@ def re_cal_failed_points(
     cy: int, cx: int, 
     num_region: int
 ):
-    mask_pad = BufferManager.mask_pad[num_region]
-    
-    py = cy + Subset_DIC_Buffer.subset_r
-    px = cx + Subset_DIC_Buffer.subset_r
-    y0, y1 = py - Subset_DIC_Buffer.subset_r, py + Subset_DIC_Buffer.subset_r + 1
-    x0, x1 = px - Subset_DIC_Buffer.subset_r, px + Subset_DIC_Buffer.subset_r + 1
-    mask_seg = mask_pad[y0:y1, x0:x1].reshape(-1)
-    valid_idx = np.nonzero(mask_seg)[0]
-    dx, dy = Subset_DIC_Buffer.X_flat[valid_idx], Subset_DIC_Buffer.Y_flat[valid_idx]
-    
     flag, defvector, corrcoef = cal_seed_point(
         cy=cy, cx=cx, 
         X_flat=Subset_DIC_Buffer.X_flat, 
@@ -332,6 +325,9 @@ def main(config_path):
                 xcalse = BufferManager.w_origin / BufferManager.w_resize
                 Subset_DIC_Buffer.plot_u = Subset_DIC_Buffer.plot_u * xcalse
                 Subset_DIC_Buffer.plot_v = Subset_DIC_Buffer.plot_v * yscale
+                DIC_STEP = [xcalse, yscale]
+        else:
+            DIC_STEP = [1, 1]
         Subset_DIC_Buffer.w_origin = BufferManager.w_origin
         Subset_DIC_Buffer.h_origin = BufferManager.h_origin
         Subset_DIC_Buffer.w_resize = BufferManager.w_resize
@@ -341,14 +337,35 @@ def main(config_path):
             Subset_DIC_Buffer.plot_u, Subset_DIC_Buffer.plot_v = \
                 DIC_smooth_Displacement(
                     Subset_DIC_Buffer.plot_u, Subset_DIC_Buffer.plot_v,
-                    Subset_DIC_Buffer.plot_validpoints, DIC_Solver.smooth_sigma)
+                    Subset_DIC_Buffer.plot_calcpoints, DIC_Solver.smooth_sigma)
         if DIC_Solver.strain_calculate_flage:
             Subset_DIC_Buffer.plot_ex, Subset_DIC_Buffer.plot_ey, Subset_DIC_Buffer.plot_rxy = \
                 DIC_Strain_from_Displacement(
                     Subset_DIC_Buffer.plot_u, Subset_DIC_Buffer.plot_v,
-                    Subset_DIC_Buffer.plot_validpoints, Subset_DIC_Buffer.step,
+                    Subset_DIC_Buffer.plot_calcpoints, DIC_STEP,
                     DIC_Solver.strain_window_half_size
                 )
+        if (BufferManager.w_origin != BufferManager.w_resize) or \
+            (BufferManager.h_origin != BufferManager.h_resize):
+            # 几何插值
+            zoom_factor_x = BufferManager.w_origin / BufferManager.w_resize
+            zoom_factor_y = BufferManager.h_origin / BufferManager.h_resize
+
+            Subset_DIC_Buffer.plot_u = zoom(Subset_DIC_Buffer.plot_u,
+                (zoom_factor_y, zoom_factor_x),order=3)
+            Subset_DIC_Buffer.plot_v = zoom(Subset_DIC_Buffer.plot_v,
+                (zoom_factor_y, zoom_factor_x),order=3)
+            Subset_DIC_Buffer.plot_ex = zoom(Subset_DIC_Buffer.plot_ex,
+                (zoom_factor_y, zoom_factor_x),order=3)
+            Subset_DIC_Buffer.plot_ey = zoom(Subset_DIC_Buffer.plot_ey,
+                (zoom_factor_y, zoom_factor_x),order=3)
+            Subset_DIC_Buffer.plot_rxy = zoom(Subset_DIC_Buffer.plot_rxy,
+                (zoom_factor_y, zoom_factor_x),order=3)
+            Subset_DIC_Buffer.plot_validpoints = zoom(Subset_DIC_Buffer.plot_validpoints,
+                (zoom_factor_y, zoom_factor_x),order=0)
+            Subset_DIC_Buffer.plot_calcpoints = zoom(Subset_DIC_Buffer.plot_calcpoints,
+                (zoom_factor_y, zoom_factor_x),order=0)
+            
         # visualize
         visualize_seed_BFS(idx, seed_valid_result, threaddiagram, DIC_Solver.output_dir)
         visualize_imshow(idx, Subset_DIC_Buffer, DIC_Solver.output_dir)

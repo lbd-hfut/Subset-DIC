@@ -34,7 +34,7 @@ def visualize_imshow(idx, Subset_DIC_Buffer, output_dir):
     ex = Subset_DIC_Buffer.plot_ex
     ey = Subset_DIC_Buffer.plot_ey
     rxy = Subset_DIC_Buffer.plot_rxy
-    valid = Subset_DIC_Buffer.plot_validpoints
+    valid = Subset_DIC_Buffer.plot_calcpoints
 
     # 检查 ex/ey/rxy 是否为 None，如果是则创建 0 矩阵
     shape = u.shape if u is not None else (1,1)
@@ -93,7 +93,7 @@ def visualize_contourf(idx, Subset_DIC_Buffer, output_dir):
     ex = Subset_DIC_Buffer.plot_ex
     ey = Subset_DIC_Buffer.plot_ey
     rxy = Subset_DIC_Buffer.plot_rxy
-    valid = Subset_DIC_Buffer.plot_validpoints
+    valid = Subset_DIC_Buffer.plot_calcpoints
 
     # 检查 ex/ey/rxy 是否为 None，如果是则创建 0 矩阵
     shape = u.shape if u is not None else (1,1)

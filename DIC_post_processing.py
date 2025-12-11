@@ -68,14 +68,14 @@ def DIC_Strain_from_Displacement(u, v, flag, step, SmoothLen):
     flag0 = flag.copy()
 
     ny, nx = u.shape
-    Ex = np.full_like(u, np.nan, dtype=np.float64)
-    Ey = np.full_like(u, np.nan, dtype=np.float64)
-    Exy = np.full_like(u, np.nan, dtype=np.float64)
+    Ex = np.full_like(u, 0, dtype=np.float64)
+    Ey = np.full_like(u, 0, dtype=np.float64)
+    Exy = np.full_like(u, 0, dtype=np.float64)
 
     # Pad displacement and flag arrays
     pad_shape = ((hfm, hfm), (hfm, hfm))
-    u = np.pad(u, pad_shape, constant_values=np.nan)
-    v = np.pad(v, pad_shape, constant_values=np.nan)
+    u = np.pad(u, pad_shape, constant_values=0)
+    v = np.pad(v, pad_shape, constant_values=0)
     flag = np.pad(flag, pad_shape, constant_values=0)
 
     for i in range(nx):
@@ -94,8 +94,8 @@ def DIC_Strain_from_Displacement(u, v, flag, step, SmoothLen):
 
             # Coordinate grid for least-squares fit
             xx, yy = np.meshgrid(np.arange(-hfm, hfm + 1), np.arange(-hfm, hfm + 1))
-            xx = xx.flatten() * step
-            yy = yy.flatten() * step
+            xx = xx.flatten() * step[0]
+            yy = yy.flatten() * step[1]
             X = np.stack([np.ones_like(xx), yy, xx], axis=1)  # shape: (m^2, 3)
 
             # Mask invalid points
