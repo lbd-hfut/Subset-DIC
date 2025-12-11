@@ -25,6 +25,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# bat file
+*.bat
 
 # case dir
 case/**/*.mat
