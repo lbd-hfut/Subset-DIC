@@ -1,8 +1,8 @@
 {
-    "input_dir": "C:/01project/DIC_boundary_test_data-main/case/gear/noise/N00/01/",
-    "output_dir": "C:/01project/DIC_boundary_test_data-main/case/gear/noise/N00/01/Subset/",
+    "input_dir": "C:/01project/DIC_boundary_test_data-main/ring_crack/",
+    "output_dir": "C:/01project/DIC_boundary_test_data-main/ring_crack/Subset/",
     "subset_half_size": 10,
-    "step": 4,
+    "step": 2,
     "shape_order": 2,
     "search_radius": 20,
     "max_iterations": 50,

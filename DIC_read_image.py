@@ -62,7 +62,7 @@ class Img_Dataset(Dataset):
         if self.config.step > 1:
             img = img.resize((w // self.config.step, h // self.config.step), Image.BICUBIC)
         img = np.array(img)
-        w, h = img.shape
+        h, w = img.shape
         if BufferManager.w_resize == None:
             BufferManager.w_resize = w
             BufferManager.h_resize = h

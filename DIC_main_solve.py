@@ -201,7 +201,7 @@ def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
                 )
                 if (outstate == SUCCESS and corrcoef < 1.0):
                     Subset_DIC_Buffer.plot_validpoints[y,x] = True
-                print(f" 新种子点 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
+                # print(f" 新种子点 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
                 paramvector = (seed_x, seed_y, defvector, corrcoef, num_region, num_thread)
                 queue.append(paramvector)
                 Subset_DIC_Buffer.plot_calcpoints[y,x] = True
@@ -240,7 +240,7 @@ def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar
     else:
         # 失败了再从新整像素搜索和亚像素匹配执行，re_cal_failed_points
         outstate, defvector, corrcoef = re_cal_failed_points(cy=y, cx=x, num_region=num_region)
-        print(f" 重新匹配 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
+        # print(f" 重新匹配 ({x},{y}) flag={outstate}: {defvector[:2]}, Ncc[{corrcoef}]")
         if (outstate == SUCCESS and
             corrcoef < cutoff_corrcoef):
             paramvector = (x, y, defvector, corrcoef, num_region, num_thread)
