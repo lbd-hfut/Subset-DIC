@@ -128,7 +128,7 @@ def cal_seed_point(
     mask_pad = BufferManager.mask_pad[mask_idx]
     
     v0, u0 = coarse_search_int(cy, cx, mask, subset_r, search_radius)
-    defvector_init = np.zeros(12)
+    defvector_init = np.zeros(6)
     defvector_init[0], defvector_init[1] = u0, v0
     
     py = cy + subset_r

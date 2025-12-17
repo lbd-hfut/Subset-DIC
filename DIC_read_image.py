@@ -182,9 +182,6 @@ class Img_Dataset(Dataset):
         H, W = refImg.shape
         self.fx = np.zeros_like(refImg, dtype=np.float32)
         self.fy = np.zeros_like(refImg, dtype=np.float32)
-        # self.fxx = np.zeros_like(refImg, dtype=np.float32)
-        # self.fxy = np.zeros_like(refImg, dtype=np.float32)
-        # self.fyy = np.zeros_like(refImg, dtype=np.float32)
         
         if self.config.subset_half_size >= 3:
             border = self.config.subset_half_size
@@ -208,9 +205,6 @@ class Img_Dataset(Dataset):
             
             self.fx[y, x] = x_vec @ (self.QK @ (block @ (self.QK.T @ w_vec)))
             self.fy[y, x] = w_vec @ (self.QK @ (block @ (self.QK.T @ x_vec)))
-            # self.fxx[y, x] = y_vec @ (self.QK @ (block @ (self.QK_DXX.T @ x_vec)))
-            # self.fxy[y, x] = y_vec @ (self.QK_DX @ (block @ (self.QK_DX.T @ x_vec)))
-            # self.fyy[y, x] = y_vec @ (self.QK_DXX @ (block @ (self.QK.T @ x_vec)))
                 
         if BufferManager.fx is None:
             BufferManager.fx = self.fx
@@ -324,108 +318,6 @@ if __name__ == "__main__":
     imgGenDataset._get_roiRegion()
     print("_get_roiRegion over")
     
-    
-    
-    # def _get_buffer_hessian(self):
-    #     # subset parameters
-    #     subset_r = self.config.subset_half_size if self.config.subset_half_size >= 3 else 3
-    #     subset_size = 2 * subset_r + 1
-    #     subset_area = subset_size * subset_size
-
-    #     # ROI list and padded ROI's
-    #     ROI_list = self._get_roiRegion()
-    #     if len(ROI_list) == 0:
-    #         return {}
-    #     ROI_pad_list = [np.pad(roi, pad_width=subset_r, mode='constant', constant_values=False)
-    #                     for roi in ROI_list]
-
-    #     # collect all points (ys,xs)
-    #     ys_all = []
-    #     xs_all = []
-    #     for roi in ROI_list:
-    #         ys, xs = np.where(roi)
-    #         ys_all.append(ys); xs_all.append(xs)
-    #     ys = np.concatenate(ys_all)
-    #     xs = np.concatenate(xs_all)
-    #     num_pts = len(ys)
-    #     if num_pts == 0:
-    #         return {}
-
-    #     # local coordinate vectors (precompute once)
-    #     x_offsets = np.arange(-subset_r, subset_r + 1, dtype=np.int32)
-    #     y_offsets = np.arange(-subset_r, subset_r + 1, dtype=np.int32)
-    #     xv, yv = np.meshgrid(x_offsets, y_offsets)  # shape (S,S)
-    #     X_flat = xv.reshape(-1)   # (subset_area,)
-    #     Y_flat = yv.reshape(-1)
-
-    #     x_vec = np.vstack([X_flat**k for k in range(6)]).T  # (subset_area,6) if needed
-    #     y_vec = np.vstack([Y_flat**k for k in range(6)]).T
-
-    #     # image gradients (only first-order needed for IC-GN)
-    #     fx, fy, _, _, _ = self._get_image_gradient()
-    #     fx_pad = np.pad(fx, pad_width=subset_r, mode='constant', constant_values=0)
-    #     fy_pad = np.pad(fy, pad_width=subset_r, mode='constant', constant_values=0)
-
-    #     # -------------------------
-    #     # Pre-allocate buffers ONCE
-    #     # -------------------------
-    #     hessian_gn_buffer = np.zeros((num_pts, 12, 12), dtype=np.float64)
-    #     mask_seg_buffer = np.zeros((subset_area), dtype=np.bool_)  # bool
-    #     Jp_buffer = np.empty((subset_area, 12), dtype=np.float64)
-    #     tmp6_buffer = np.zeros((6, 6), dtype=np.float64)
-    #     # NB: we will write into df_dp_buffer[p_idx] in-place via copyto or slice assignment
-
-    #     # Precompute broadcast multipliers to avoid recalculating
-    #     # X_flat, Y_flat already computed
-
-    #     # Loop over points (only this single loop remains)
-    #     for p_idx, (yc, xc) in enumerate(zip(ys, xs)):
-    #         # pick roi containing this center
-    #         roi_current = None
-    #         for roi_pad in ROI_pad_list:
-    #             if roi_pad[yc + subset_r, xc + subset_r]:
-    #                 roi_current = roi_pad
-    #                 break
-
-    #         # padded center coordinates
-    #         py = yc + subset_r
-    #         px = xc + subset_r
-    #         y0, y1 = py - subset_r, py + subset_r + 1
-    #         x0, x1 = px - subset_r, px + subset_r + 1
-
-    #         # ---- obtain patches as views ----
-    #         # these are views into fx_pad/fy_pad; reshape -> may be view if contiguous
-    #         fx_patch = fx_pad[y0:y1, x0:x1]   # shape (S,S), view
-    #         fy_patch = fy_pad[y0:y1, x0:x1]
-
-    #         mask_view = roi_current[y0:y1, x0:x1]
-    #         np.copyto(mask_seg_buffer, mask_view.reshape(-1))
-    
-    #         np.copyto(Jp_buffer[:, 0], fx_patch.reshape(-1))
-    #         np.copyto(Jp_buffer[:, 1], fy_patch.reshape(-1))
-    #         # for products, use np.multiply with out to avoid creating X*gx temporaries
-    #         np.multiply(X_flat, Jp_buffer[:, 0], out=Jp_buffer[:, 2])   # X * gx
-    #         np.multiply(X_flat, Jp_buffer[:, 1], out=Jp_buffer[:, 3])   # X * gy
-    #         np.multiply(Y_flat, Jp_buffer[:, 0], out=Jp_buffer[:, 4])   # Y * gx
-    #         np.multiply(Y_flat, Jp_buffer[:, 1], out=Jp_buffer[:, 5])   # Y * gy
-    #         # squared terms
-    #         np.multiply(X_flat * X_flat * 0.5, Jp_buffer[:, 0], out=Jp_buffer[:, 6])  # 0.5 X^2 * gx
-    #         np.multiply(X_flat * X_flat * 0.5, Jp_buffer[:, 1], out=Jp_buffer[:, 7])  # 0.5 X^2 * gy
-    #         np.multiply(X_flat * Y_flat, Jp_buffer[:, 0], out=Jp_buffer[:, 8])        # X*Y*gx
-    #         np.multiply(X_flat * Y_flat, Jp_buffer[:, 1], out=Jp_buffer[:, 9])        # X*Y*gy
-    #         np.multiply(Y_flat * Y_flat * 0.5, Jp_buffer[:, 0], out=Jp_buffer[:, 10]) # 0.5 Y^2 * gx
-    #         np.multiply(Y_flat * Y_flat * 0.5, Jp_buffer[:, 1], out=Jp_buffer[:, 11]) # 0.5 Y^2 * gy
-    #         # ---- compute Hessian in-place (no boolean-index copy) ----
-    #         valid_idx = np.nonzero(mask_seg_buffer)[0]  # indices of valid pixels
-    #         hessian_gn_temp = Jp_buffer[valid_idx, :].T @ Jp_buffer[valid_idx, :]
-    #         # accumulate outer products (12x12) incrementally -> no big temporaries
-    #         np.copyto(hessian_gn_buffer[p_idx], hessian_gn_temp)
-    #         if (p_idx + 1) % 1000 == 0:
-    #             print(f"No.{p_idx + 1} has completed")
-
-    #     # return buffers
-    #     return hessian_gn_buffer
-
     
 
     
