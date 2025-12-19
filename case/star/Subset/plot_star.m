@@ -9,7 +9,7 @@ figure(1)
 [M, N] = size(DIC_result.plot_v);
 set(gcf, 'Units', 'pixels', 'Position', [100 100 N M]);
 
-alpha_channel = DIC_result.plot_validpoints * 255;
+alpha_channel = DIC_result.plot_calcpoints * 255;
 
 h1 = imagesc(DIC_result.plot_v);
 colormap jet;

@@ -151,11 +151,17 @@ def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
             dx, dy = x - cx, y - cy
             u = (defvector[0] +
                 defvector[2] * dx +
-                defvector[4] * dy)
+                defvector[4] * dy +
+                0.5 * defvector[6] * dx * dx +
+                defvector[8] * dx * dy +
+                0.5 * defvector[10] * dy * dy)
             defvector[0] = u
             v = (defvector[1] +
                 defvector[3] * dx +
-                defvector[5] * dy)
+                defvector[5] * dy +
+                0.5 * defvector[7] * dx * dx +
+                defvector[9] * dx * dy +
+                0.5 * defvector[11] * dy * dy)
             defvector[1] = v
             analyzepoint(
                 queue=queue, x=x, y=y, 

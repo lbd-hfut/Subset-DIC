@@ -36,45 +36,103 @@ def interpqbs(xs, ys, REF_FLAG=False, DEF_FLAG=False):
     return values
 
 
+def construct_w_matrix(defvector):
+    # Translation
+    u, v = defvector[0], defvector[1]
+    # First-order derivatives (affine terms)
+    ux, vx, uy, vy = defvector[2], defvector[3], defvector[4], defvector[5]
+    # Second-order derivatives
+    uxx, vxx, uxy, vxy, uyy, vyy = \
+        defvector[6], defvector[7], defvector[8], defvector[9], defvector[10], defvector[11]
+    
+    # S1–S6 (u-related)
+    S1  = 2*ux + ux**2 + u*uxx
+    S2  = 2*u*uxy + 2*(1 + ux)*uy
+    S3  = uy**2 + u*uyy
+    S4  = 2*u*(1 + ux)
+    S5  = 2*u*uy
+    S6  = u**2
+
+    # S7–S12 (u–v coupling)
+    S7  = 0.5*(v*uxx + 2*(1 + ux)*vx + u*vxx)
+    S8  = uy*vx + ux*vy + v*uxy + u*vxy + vy + ux
+    S9  = 0.5*(v*uyy + 2*uy*(1 + vy) + u*vyy)
+    S10 = v + v*ux + u*vx
+    S11 = u + v*uy + u*vy
+    S12 = u*v
+
+    # S13–S18 (v-related)
+    S13 = vx**2 + v*vxx
+    S14 = 2*v*vxy + 2*vx*(1 + vy)
+    S15 = 2*vy + vy**2 + v*vyy
+    S16 = 2*v*vx
+    S17 = 2*v*(1 + vy)
+    S18 = v**2
+
+    
+    
+    # ------ A ------
+    A =  np.array([
+        [1+S1,        S2,       S3],
+        [S7,        1+S8,       S9],
+        [S13,        S14,       1+S15]
+    ])
+    # ------ B ------
+    B =  np.array([
+        [S4,        S5,       S6],
+        [S10,       S11,      S12],
+        [S16,       S17,      S18]
+    ])
+    # ------ C ------
+    C = np.array([
+        [0.5*uxx,  uxy,     0.5*uyy],
+        [0.5*vxx,  vxy,     0.5*vyy],
+        [0,        0,       0]
+    ])
+    # ------ D ------
+    D = np.array([
+        [1+ux,     uy,      u],
+        [vx,       1+vy,    v],
+        [0,        0,       1]
+    ])
+    # C_add = np.array([
+    #     [0,         2*u,        0],
+    #     [0,         v,          u],
+    #     [0,         0,          2*v]
+    # ])
+    # D_add = np.array([
+    #     [2*ux,      2*uy,        0],
+    #     [vx,        ux+vy,       uy],
+    #     [0,         2*vx,        2*vy]
+    # ])
+    
+    # C = C + C_add
+    # D = D + D_add
+    
+    top = np.hstack((A, B))
+    bottom = np.hstack((C, D))
+    W = np.vstack((top, bottom))
+    return W
+
+
 # -------------------------
 # Inverse compositional update 
 # -------------------------
-def inverse_compositional_update_2nd_order(defvector_old, delta_def):
-    # Translation
-    U, V = defvector_old[0], defvector_old[1]
-    du, dv = delta_def[0], delta_def[1]
-
-    # First-order derivatives (affine terms)
-    dudx, dvdx, dudy, dvdy = defvector_old[2], defvector_old[3], defvector_old[4], defvector_old[5]
-    d_dudx, d_dvdx, d_dudy, d_dvdy = delta_def[2], delta_def[3], delta_def[4], delta_def[5]
-
-    # First-order affine matrices
-    M_old = np.array([
-        [1 + dudx, dudy, U],
-        [dvdx, 1 + dvdy, V],
-        [0, 0, 1]
-    ])
-    
-    M_delta = np.array([
-        [1 + d_dudx, d_dudy, du],
-        [d_dvdx, 1 + d_dvdy, dv],
-        [0, 0, 1]
-    ])
+def inverse_compositional_update_2nd_order(defvector_old, defvector_delta):
+    W_old = construct_w_matrix(defvector_old)
+    W_delta = construct_w_matrix(defvector_delta)
     
     # Inverse compositional for first-order
-    M_new = M_old @ np.linalg.inv(M_delta)
+    W_new = W_old @ np.linalg.inv(W_delta)
     
     # Updated first-order parameters
-    dudx_new = M_new[0,0] - 1
-    dudy_new = M_new[0,1]
-    U_new = M_new[0,2]
-    
-    dvdx_new = M_new[1,0]
-    dvdy_new = M_new[1,1] - 1
-    V_new = M_new[1,2]
+    u, v = W_new[3,5], W_new[4,5]
+    ux, vx, uy, vy = W_new[3,3]-1, W_new[4,3], W_new[3,4], W_new[4,4]-1
+    uxx, vxx, uxy, vxy, uyy, vyy = \
+         W_new[3,0]*2, W_new[4,0]*2, W_new[3,1], W_new[4,1], W_new[3,2]*2, W_new[4,2]*2
     
     defvector_new = np.array([
-        U_new, V_new, dudx_new, dvdx_new, dudy_new, dvdy_new
+        u, v, ux, vx, uy, vy, uxx, vxx, uxy, vxy, uyy, vyy
     ])
     
     return defvector_new
@@ -103,7 +161,7 @@ def iterativesearch(
         return FAILED, defvector_init, -1
     else:
         deltaf_inv = 1 / deltaf_inv
-        df_dp_buffer = np.zeros((len(f_buffer), 6), dtype=np.float32)
+        df_dp_buffer = np.zeros((len(f_buffer), 12), dtype=np.float32)
         df_dx = BufferManager.fx[Y_valid_corrd, X_valid_corrd]
         df_dy = BufferManager.fy[Y_valid_corrd, X_valid_corrd]
         df_dp_buffer[:, 0] = df_dx
@@ -113,6 +171,13 @@ def iterativesearch(
         np.multiply(dx, df_dy, out=df_dp_buffer[:, 3])   # X * fy
         np.multiply(dy, df_dx, out=df_dp_buffer[:, 4])   # Y * fx
         np.multiply(dy, df_dy, out=df_dp_buffer[:, 5])   # Y * fy
+        # squared terms
+        np.multiply(dx * dx * 0.5, df_dx, out=df_dp_buffer[:, 6])  # 0.5 X^2 * fx
+        np.multiply(dx * dx * 0.5, df_dy, out=df_dp_buffer[:, 7])  # 0.5 X^2 * fy
+        np.multiply(dx * dy, df_dx, out=df_dp_buffer[:, 8])        # X * Y * fx
+        np.multiply(dx * dy, df_dy, out=df_dp_buffer[:, 9])        # X * Y * fy
+        np.multiply(dy * dy * 0.5, df_dx, out=df_dp_buffer[:, 10]) # 0.5 Y^2 * fx
+        np.multiply(dy * dy * 0.5, df_dy, out=df_dp_buffer[:, 11]) # 0.5 Y^2 * fy
         # compute Hessian
         hessian_gn = df_dp_buffer.T @ df_dp_buffer
         hessian_gn = hessian_gn * 2 * (deltaf_inv**2)
@@ -161,16 +226,12 @@ def newton(
     cholesky_G: np.ndarray
 ) -> Tuple[int, np.ndarray, float]:
     
-    u = (defvector_init[0] +
-         defvector_init[2] * dx +
-         defvector_init[4] * dy)
-
-    v = (defvector_init[1] +
-         defvector_init[3] * dx +
-         defvector_init[5] * dy)
+    W = construct_w_matrix(defvector_init)
+    dX = np.column_stack([dx**2, dx*dy, dy**2, dx, dy, np.ones_like(dx)])
+    dX_tilida = np.einsum('ij,nj->ni', W, dX)
     
-    X_tilda_corrd = xc + dx + u
-    Y_tilda_corrd = yc + dy + v
+    X_tilda_corrd = xc + dX_tilida[:, 3]
+    Y_tilda_corrd = yc + dX_tilida[:, 4]
     try:
         g_buffer = interpqbs(X_tilda_corrd, Y_tilda_corrd, REF_FLAG=False, DEF_FLAG=True)
     except:

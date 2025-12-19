@@ -1,7 +1,7 @@
 {
     "input_dir": "./case/star/",
     "output_dir": "./case/star/Subset/",
-    "subset_half_size": 5,
+    "subset_half_size": 10,
     "step": 1,
     "shape_order": 2,
     "search_radius": 20,

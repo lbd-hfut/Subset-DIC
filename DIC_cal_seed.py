@@ -128,7 +128,7 @@ def cal_seed_point(
     mask_pad = BufferManager.mask_pad[mask_idx]
     
     v0, u0 = coarse_search_int(cy, cx, mask, subset_r, search_radius)
-    defvector_init = np.zeros(6)
+    defvector_init = np.zeros(12)
     defvector_init[0], defvector_init[1] = u0, v0
     
     py = cy + subset_r
@@ -191,6 +191,7 @@ if __name__ == "__main__":
     from scipy.io import savemat
     import time
 
+
     cfg = load_dic_config("./config.json")
     imgGenDataset = Img_Dataset(cfg)
     imgGenDataset._get_QK_QKdx_QKdxx()
@@ -217,8 +218,9 @@ if __name__ == "__main__":
     Y_flat = yv.reshape(-1)
     
     for idx, DimageL in enumerate(img_loader):
+        cy, cx = 0, 6
         flag, defvector, corrcoef = cal_seed_point(
-                cy=249, cx=1023,
+                cy=cy, cx=cx,
                 X_flat=X_flat,
                 Y_flat=Y_flat,
                 subset_r=subset_r,
@@ -227,6 +229,6 @@ if __name__ == "__main__":
                 cutoff_diffnorm=cutoff_diffnorm,
                 lambda_reg=lambda_reg
             )
-        
+        print(f"({cx},{cy}) flag={flag}: {defvector[:2]}, Ncc[{corrcoef}]")
     
 
