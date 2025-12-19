@@ -193,24 +193,10 @@ if __name__ == "__main__":
 
     cfg = load_dic_config("./config.json")
     imgGenDataset = Img_Dataset(cfg)
-    
     imgGenDataset._get_QK_QKdx_QKdxx()
-    imgGenDataset._get_roiRegion()
-    # print("_get_QK_QKdx_QKdxx over")
-    
-    start_time = time.time()
     refImg, ref_bcoef = imgGenDataset._get_refImg()
-    total_time = time.time()-start_time
-    # print("_get_refImg over")
-    print(f"cost {total_time}s")
-    print()
-    
-    start_time = time.time()
     imgGenDataset._get_image_gradient()
-    total_time = time.time()-start_time
-    # print("_get_image_gradient over")
-    print(f"cost {total_time}s")
-    print()
+
     
     seed_solver = seed_math(ROI_LIST=BufferManager.mask, config=cfg)
     
@@ -218,16 +204,28 @@ if __name__ == "__main__":
         imgGenDataset, batch_size=1, 
         shuffle=False, collate_fn=collate_fn)
     
+    subset_r = cfg.subset_half_size
+    search_radius = cfg.search_radius
+    max_iter = cfg.max_iterations
+    cutoff_diffnorm = cfg.cutoff_diffnorm
+    lambda_reg = cfg.lambda_reg
+    
+    x_offsets = np.arange(-subset_r, subset_r + 1, dtype=np.int32)
+    y_offsets = np.arange(-subset_r, subset_r + 1, dtype=np.int32)
+    xv, yv = np.meshgrid(x_offsets, y_offsets)  # shape (S,S)
+    X_flat = xv.reshape(-1)   # (subset_area,)
+    Y_flat = yv.reshape(-1)
+    
     for idx, DimageL in enumerate(img_loader):
-        start_time = time.time()
-        results = seed_solver.solve_all_seed_points()
-        total_time = time.time()-start_time
-        print(f"cost {total_time*1000}ms")
-        print()
-        # 2️⃣ 打印 defvector 的前两个元素
-        print("\n=== defvector 前两个值 ===")
-        for (cx, cy, flag, defvector, corrcoef) in results:
-            print(f"({cx},{cy}) flag={flag}: {defvector[:2]}, Ncc[{corrcoef}]")
+        flag, defvector, corrcoef = cal_seed_point(
+                cy=249, cx=1023,
+                X_flat=X_flat,
+                Y_flat=Y_flat,
+                subset_r=subset_r,
+                search_radius=search_radius,
+                max_iter=max_iter,
+                cutoff_diffnorm=cutoff_diffnorm,
+                lambda_reg=lambda_reg
+            )
         
     
-
