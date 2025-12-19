@@ -166,7 +166,51 @@ def analysis_queue(queue, seed_info, pbar, pbar_lock, stop_event):
                 pbar_lock = pbar_lock,
                 stop_event = stop_event
                 )
-       
+        if queue:
+            continue
+        else:
+            with Subset_DIC_Buffer.data_lock:
+                ys_u, xs_u = np.where(
+                    (Subset_DIC_Buffer.threaddiagram == num_thread) & \
+                        (~Subset_DIC_Buffer.plot_calcpoints) & \
+                            BufferManager.mask[num_region]
+                    )
+            Num_left_points =len(ys_u)
+            if Num_left_points== 0:
+                continue
+            else:
+                continue_re_seed_flag = True
+                while continue_re_seed_flag:
+                    random_idx = np.random.randint(0, Num_left_points)
+                    seed_y = ys_u[random_idx]
+                    seed_x = xs_u[random_idx]
+                    outstate, defvector, corrcoef = re_cal_failed_points(
+                        cy=seed_y, cx=seed_x, num_region=num_region
+                    )
+                    if (outstate == SUCCESS and corrcoef < 1.0):
+                        Subset_DIC_Buffer.plot_validpoints[seed_y,seed_x] = True
+                        paramvector = (seed_x, seed_y, defvector, corrcoef, num_region, num_thread)
+                        queue.append(paramvector)
+                        continue_re_seed_flag = False
+                    else:
+                        with Subset_DIC_Buffer.data_lock:
+                            Subset_DIC_Buffer.plot_u[seed_y,seed_x] = defvector[0]
+                            Subset_DIC_Buffer.plot_v[seed_y,seed_x] = defvector[1]
+                            Subset_DIC_Buffer.plot_corrcoef[seed_y,seed_x] = corrcoef
+                        continue_re_seed_flag = True
+                    Subset_DIC_Buffer.plot_calcpoints[seed_y,seed_x] = True
+                    if pbar is not None and pbar_lock is not None:
+                        with pbar_lock:
+                            pbar.update(1)
+                    ys_u, xs_u = np.where(
+                            (Subset_DIC_Buffer.threaddiagram == num_thread) & \
+                                (~Subset_DIC_Buffer.plot_calcpoints) & \
+                                    BufferManager.mask[num_region]
+                            )
+                    Num_left_points =len(ys_u)
+                    if Num_left_points== 0:
+                        continue_re_seed_flag = False
+                    
 
 def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar_lock, stop_event):
     if stop_event.is_set():   # 立即退出该点计算
@@ -197,6 +241,13 @@ def analyzepoint(queue, x, y, defvector_init, num_region, num_thread, pbar, pbar
         queue.append(paramvector)
         Subset_DIC_Buffer.plot_validpoints[y,x] = True
     else:
+        # 失败了再从新整像素搜索和亚像素匹配执行，re_cal_failed_points
+        outstate, defvector, corrcoef = re_cal_failed_points(cy=y, cx=x, num_region=num_region)
+        if (outstate == SUCCESS and
+            corrcoef < cutoff_corrcoef):
+            paramvector = (x, y, defvector, corrcoef, num_region, num_thread)
+            # queue.append(paramvector)
+            Subset_DIC_Buffer.plot_validpoints[y,x] = True
         with Subset_DIC_Buffer.data_lock:
             Subset_DIC_Buffer.plot_u[y,x] = defvector[0]
             Subset_DIC_Buffer.plot_v[y,x] = defvector[1]
@@ -330,4 +381,3 @@ if __name__ == "__main__":
 
         
         
-
